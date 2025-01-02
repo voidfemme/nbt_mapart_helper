@@ -4,6 +4,71 @@ from collections import defaultdict
 from typing import Dict, Any, DefaultDict
 
 
+def get_overall_statistics(
+    chunk_manager: "ChunkManager", progress_tracker: "ProgressTracker"
+) -> Dict[str, Any]:
+    """Calculate overall statistics across all chunks.
+
+    Args:
+        chunk_manager: ChunkManager instance containing all chunks
+        progress_tracker: ProgressTracker instance for completion data
+
+    Returns:
+        Dictionary containing overall statistics
+    """
+    stats = {
+        "total_chunks": 0,
+        "completed_chunks": 0,
+        "partially_complete_chunks": 0,
+        "total_blocks": 0,
+        "block_types": defaultdict(int),
+        "total_rows": 0,
+        "completed_rows": 0,
+    }
+
+    # Process each chunk
+    for chunk_ref in chunk_manager.list_chunks():
+        chunk = chunk_manager.get_chunk(chunk_ref)
+        if not chunk:
+            continue
+
+        stats["total_chunks"] += 1
+        chunk_data = chunk.to_dict()
+
+        # Count blocks in this chunk
+        for row_blocks in chunk_data.values():
+            for block in row_blocks:
+                stats["total_blocks"] += 1
+                stats["block_types"][block["block_type"]] += 1
+
+        # Track completion
+        completed_rows = len(progress_tracker.get_completed_rows(chunk_ref))
+        stats["completed_rows"] += completed_rows
+        stats["total_rows"] += 16  # Each chunk has 16 rows
+
+        if progress_tracker.is_chunk_complete(chunk_ref):
+            stats["completed_chunks"] += 1
+        elif completed_rows > 0:
+            stats["partially_complete_chunks"] += 1
+
+    # Calculate percentages
+    if stats["total_chunks"] > 0:
+        stats["completion_percentage"] = (
+            stats["completed_chunks"] / stats["total_chunks"]
+        ) * 100
+    else:
+        stats["completion_percentage"] = 0
+
+    if stats["total_rows"] > 0:
+        stats["row_completion_percentage"] = (
+            stats["completed_rows"] / stats["total_rows"]
+        ) * 100
+    else:
+        stats["row_completion_percentage"] = 0
+
+    return stats
+
+
 def get_chunk_statistics(
     chunk_data: Dict[int, list], chunk_ref: str, progress_tracker: Any
 ) -> Dict[str, Any]:

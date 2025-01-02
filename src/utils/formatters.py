@@ -1,14 +1,66 @@
 """Formatting utilities for chunk data display."""
+
 from typing import Dict, List, Any
 import string
 
 
+def format_overall_statistics(stats: Dict[str, Any]) -> str:
+    """Format overall statistics into a readable string.
+
+    Args:
+        stats: Dictionary containing overall statistics
+
+    Returns:
+        Formatted string containing statistics
+    """
+    output = ["\nOverall Statistics:"]
+
+    # Completion Progress
+    output.append("\nCompletion Progress:")
+    output.append(f"Total Chunks: {stats['total_chunks']}")
+    output.append(f"├── Completed: {stats['completed_chunks']}")
+    output.append(f"├── Partially Complete: {stats['partially_complete_chunks']}")
+    output.append(
+        f"└── Empty: {stats['total_chunks'] - stats['completed_chunks'] - stats['partially_complete_chunks']}"
+    )
+    output.append(f"Overall Completion: {stats['completion_percentage']:.1f}%")
+
+    output.append(
+        f"\nRows Completed: {stats['completed_rows']}/{stats['total_rows']} ({stats['row_completion_percentage']:.1f}%)"
+    )
+
+    # Block Statistics
+    output.append("\nBlock Requirements:")
+    header = "{:<25} {:>8} {:>8} {:>8}".format("Block Type", "Total", "Stacks", "Extra")
+    separator = "-" * 52
+    output.append(separator)
+    output.append(header)
+    output.append(separator)
+
+    for block_type, count in sorted(stats["block_types"].items()):
+        stacks = count // 64
+        extras = count % 64
+        output.append(
+            "{:<25} {:>8} {:>8} {:>8}".format(
+                block_type,
+                count,
+                stacks if stacks > 0 else "-",
+                extras if count >= 64 else count,
+            )
+        )
+
+    output.append(separator)
+    output.append(f"\nTotal Blocks: {stats['total_blocks']}")
+
+    return "\n".join(output)
+
+
 def format_chunk_statistics(stats: Dict[str, Any]) -> str:
     """Format chunk statistics into a readable string.
-    
+
     Args:
         stats: Dictionary containing chunk statistics
-        
+
     Returns:
         Formatted string containing statistics
     """
@@ -18,7 +70,7 @@ def format_chunk_statistics(stats: Dict[str, Any]) -> str:
     output.append(
         f"Chunk status: {'Complete' if stats['is_chunk_complete'] else 'In Progress'}"
     )
-    
+
     output.append(f"\nHeight Information:")
     output.append(
         f"Highest block: {stats['max_height_block']} at Y={stats['max_height']}"
@@ -26,7 +78,7 @@ def format_chunk_statistics(stats: Dict[str, Any]) -> str:
     output.append(
         f"Lowest block: {stats['min_height_block']} at Y={stats['min_height']}"
     )
-    
+
     output.append(f"\nBlock Distribution:")
     output.append(f"Unique block types: {stats['unique_block_types']}")
     output.append(
@@ -59,14 +111,16 @@ def format_chunk_statistics(stats: Dict[str, Any]) -> str:
     return "\n".join(output)
 
 
-def format_row_data(chunk_data: Dict[int, List[Dict]], chunk_ref: str, row_num: int, completed: bool) -> str:
+def format_row_data(
+    chunk_data: Dict[int, List[Dict]], chunk_ref: str, row_num: int, completed: bool
+) -> str:
     """Format data for a single row of blocks.
-    
+
     Args:
         chunk_data: Dictionary containing row data
         row_num: Row number to format
         completed: Whether the row is marked as complete
-        
+
     Returns:
         Formatted string containing row data
     """
@@ -76,7 +130,9 @@ def format_row_data(chunk_data: Dict[int, List[Dict]], chunk_ref: str, row_num: 
     )
     table_separator = "-" * 50
 
-    output.append(f"\nChunk {chunk_ref}, Row {row_num}: {'[COMPLETED]' if completed else ''}")
+    output.append(
+        f"\nChunk {chunk_ref}, Row {row_num}: {'[COMPLETED]' if completed else ''}"
+    )
     output.append(table_header)
     output.append(table_separator)
 
@@ -103,13 +159,15 @@ def format_row_data(chunk_data: Dict[int, List[Dict]], chunk_ref: str, row_num: 
     return "\n".join(output)
 
 
-def format_chunk_grid(chunks: Dict[str, Any], progress_tracker: 'ProgressTracker') -> str:
+def format_chunk_grid(
+    chunks: Dict[str, Any], progress_tracker: "ProgressTracker"
+) -> str:
     """Format available chunks in a grid format with completion status.
-    
+
     Args:
         chunks: Dictionary of available chunks
         progress_tracker: Progress tracking instance to check completion status
-        
+
     Returns:
         Formatted string showing chunk grid
     """
@@ -126,7 +184,7 @@ def format_chunk_grid(chunks: Dict[str, Any], progress_tracker: 'ProgressTracker
     output.append("█ = Completed chunk")
     output.append("- = Partially completed chunk")
     output.append("X = Empty chunk\n")
-    
+
     output.append("   " + " ".join(f"{i:2}" for i in range(1, max_number + 1)))
     output.append("   " + "-" * (max_number * 3))
 

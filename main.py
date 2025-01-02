@@ -1,4 +1,5 @@
 """Main entry point for NBT viewer application."""
+
 import sys
 import os
 from nbtlib import nbt
@@ -8,13 +9,23 @@ from src.config import ConfigManager
 from src.models.chunk import ChunkManager
 from src.models.progress import ProgressTracker
 from src.utils.path_completion import input_with_path_completion
-from src.utils.chunk_utils import get_chunk_statistics, save_chunk_data
-from src.utils.formatters import format_chunk_statistics, format_row_data, format_chunk_grid
+from src.utils.chunk_utils import (
+    get_chunk_statistics,
+    save_chunk_data,
+    get_overall_statistics,
+)
+from src.utils.formatters import (
+    format_chunk_statistics,
+    format_overall_statistics,
+    format_row_data,
+    format_chunk_grid,
+    format_overall_statistics,
+)
 
 
 class NBTViewer:
     """Main application class for NBT viewer."""
-    
+
     def __init__(self):
         """Initialize NBT viewer application."""
         self.config = ConfigManager()
@@ -23,9 +34,9 @@ class NBTViewer:
     def load_nbt_file(self) -> None:
         """Load NBT file and initialize managers."""
         try:
-            self.nbt_file = nbt.load(self.config.get('nbt_file'))
+            self.nbt_file = nbt.load(self.config.get("nbt_file"))
             self.chunk_manager = ChunkManager(self.nbt_file)
-            self.progress_tracker = ProgressTracker(self.config.get('progress_file'))
+            self.progress_tracker = ProgressTracker(self.config.get("progress_file"))
         except FileNotFoundError:
             print(f"Error: NBT file not found at {self.config.get('nbt_file')}")
             self.handle_missing_nbt()
@@ -47,7 +58,7 @@ class NBTViewer:
         elif choice == "2":
             new_path = input_with_path_completion("Enter the path to your NBT file: ")
             if os.path.exists(new_path):
-                self.config.set('nbt_file', new_path)
+                self.config.set("nbt_file", new_path)
                 print(f"Updated config with new NBT file path: {new_path}")
                 self.load_nbt_file()
             else:
@@ -76,7 +87,9 @@ class NBTViewer:
             if row_num in chunk_data:
                 print(format_row_data(chunk_data, chunk_ref, row_num, is_completed))
             else:
-                print(f"\nChunk {chunk_ref}, Row {row_num}: {'[COMPLETED]' if is_completed else ''}")
+                print(
+                    f"\nChunk {chunk_ref}, Row {row_num}: {'[COMPLETED]' if is_completed else ''}"
+                )
                 print("No blocks in this row")
 
         # Print separator before statistics
@@ -87,23 +100,27 @@ class NBTViewer:
         print(format_chunk_statistics(stats))
 
         save_option = input("\nWould you like to save this to a file? (y/n): ").lower()
-        if save_option == 'y':
+        if save_option == "y":
             filename = f"chunk_{chunk_ref}.txt"
-            output_path = os.path.join(self.config.get('output_directory'), filename)
-            
+            output_path = os.path.join(self.config.get("output_directory"), filename)
+
             # Save both row data and statistics
             full_output = []
             full_output.append(f"Chunk {chunk_ref}:")
             for row_num in range(16):
                 is_completed = row_num in completed_rows
                 if row_num in chunk_data:
-                    full_output.append(format_row_data(chunk_data, chunk_ref, row_num, is_completed))
+                    full_output.append(
+                        format_row_data(chunk_data, chunk_ref, row_num, is_completed)
+                    )
                 else:
-                    full_output.append(f"\nChunk {chunk_ref}, Row {row_num}: {'[COMPLETED]' if is_completed else ''}")
+                    full_output.append(
+                        f"\nChunk {chunk_ref}, Row {row_num}: {'[COMPLETED]' if is_completed else ''}"
+                    )
                     full_output.append("No blocks in this row")
             full_output.append("\n" + "-" * 50)
             full_output.append(format_chunk_statistics(stats))
-            
+
             message = save_chunk_data("\n".join(full_output), output_path)
             print(message)
 
@@ -119,7 +136,7 @@ class NBTViewer:
 
         while True:
             # Clear screen (platform independent)
-            os.system('cls' if os.name == 'nt' else 'clear')
+            os.system("cls" if os.name == "nt" else "clear")
 
             # Show chunk info header
             print(f"\nChunk {chunk_ref} - Row by Row Mode")
@@ -164,7 +181,9 @@ class NBTViewer:
                     if 0 <= row_num <= 15:
                         current_row = row_num
                     else:
-                        print("\nInvalid row number. Please enter a number between 0 and 15.")
+                        print(
+                            "\nInvalid row number. Please enter a number between 0 and 15."
+                        )
                         input("Press Enter to continue...")
                 except ValueError:
                     print("\nInvalid input. Please try again.")
@@ -175,7 +194,7 @@ class NBTViewer:
         print("\nUse tab completion to navigate directories")
         new_path = input_with_path_completion("Enter the path to your NBT file: ")
         if os.path.exists(new_path):
-            self.config.set('nbt_file', new_path)
+            self.config.set("nbt_file", new_path)
             print(f"Updated config with new NBT file path: {new_path}")
             print("Please restart the program to load the new file.")
             sys.exit(0)
@@ -208,6 +227,12 @@ class NBTViewer:
             elif choice == "2":
                 chunks = self.chunk_manager.list_chunks()
                 print(format_chunk_grid(dict.fromkeys(chunks), self.progress_tracker))
+
+                # Get and display overall statistics
+                stats = get_overall_statistics(
+                    self.chunk_manager, self.progress_tracker
+                )
+                print(format_overall_statistics(stats))
             elif choice == "3":
                 chunk_ref = input("Enter chunk reference (e.g., A1): ").upper()
                 chunk = self.chunk_manager.get_chunk(chunk_ref)
@@ -216,12 +241,18 @@ class NBTViewer:
                     continue
 
                 print("\nUse tab completion to navigate directories")
-                filename = input_with_path_completion("Enter filename (or press Enter for default): ")
+                filename = input_with_path_completion(
+                    "Enter filename (or press Enter for default): "
+                )
                 if not filename:
-                    filename = os.path.join(self.config.get('output_directory'), f"chunk_{chunk_ref}.txt")
-                
+                    filename = os.path.join(
+                        self.config.get("output_directory"), f"chunk_{chunk_ref}.txt"
+                    )
+
                 chunk_data = chunk.to_dict()
-                stats = get_chunk_statistics(chunk_data, chunk_ref, self.progress_tracker)
+                stats = get_chunk_statistics(
+                    chunk_data, chunk_ref, self.progress_tracker
+                )
                 message = save_chunk_data(format_chunk_statistics(stats), filename)
                 print(message)
             elif choice == "4":
@@ -252,7 +283,9 @@ class NBTViewer:
                     print(f"Chunk {chunk_ref} not found!")
                     continue
                 chunk_data = chunk.to_dict()
-                stats = get_chunk_statistics(chunk_data, chunk_ref, self.progress_tracker)
+                stats = get_chunk_statistics(
+                    chunk_data, chunk_ref, self.progress_tracker
+                )
                 print(format_chunk_statistics(stats))
             elif choice == "7":
                 chunk_ref = input("Enter chunk reference (e.g., A1): ").upper()
