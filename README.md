@@ -1,6 +1,6 @@
-# NBT Viewer
+# NBT Mapart Helper
 
-A Python tool for viewing and analyzing NBT file blocks in a chunk-based format.
+A Python tool for helping create Minecraft map art by analyzing NBT files block by block.
 
 ## Features
 
@@ -16,8 +16,8 @@ A Python tool for viewing and analyzing NBT file blocks in a chunk-based format.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/nbt-viewer.git
-cd nbt-viewer
+git clone https://github.com/voidfemme/nbt_mapart_helper.git
+cd nbt_mapart_helper
 ```
 
 2. Create and activate a virtual environment (recommended):
@@ -45,7 +45,7 @@ pip install -e .
 
 1. Place your NBT file in the `resources` directory or specify a custom path in the config.
 
-2. Run the viewer:
+2. Run the helper:
 ```bash
 python main.py
 ```
@@ -69,7 +69,7 @@ python main.py
 ## Directory Structure
 
 ```
-nbt_viewer/
+nbt_mapart_helper/
 ├── docs/           # Documentation
 ├── resources/      # Configuration and data files
 ├── src/           # Source code

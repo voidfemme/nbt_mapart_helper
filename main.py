@@ -185,7 +185,7 @@ class NBTViewer:
     def run(self) -> None:
         """Main application loop."""
         while True:
-            print("\nNBT Viewer - Main Menu")
+            print("\nNBT Mapart Helper - Main Menu")
             print("Options:")
             print("1. View chunk data (enter chunk reference like A1)")
             print("2. List all available chunks")
