@@ -1,2 +1,2 @@
 nbtlib>=1.12.1
-readline>=6.2.4.1
+readline>=6.3.8

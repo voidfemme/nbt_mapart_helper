@@ -7,7 +7,7 @@ setup(
     packages=find_packages(where="src"),
     install_requires=[
         "nbtlib>=1.12.1",
-        "readline>=6.2.4.1",
+        "gnureadline>=6.3.8",
     ],
     entry_points={
         "console_scripts": [
