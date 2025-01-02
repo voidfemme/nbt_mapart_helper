@@ -1,5 +1,5 @@
 """Path completion utilities for command-line interface."""
-import readline
+import gnureadline as readline
 import glob
 import os
 
