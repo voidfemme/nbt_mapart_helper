@@ -64,9 +64,9 @@ python main.py
 
 ### Chunk Grid Legend
 
-- █ = Completed chunk
-- \- = Partially completed chunk
-- X = Empty chunk
+- `█` = Completed chunk
+- `-` = Partially completed chunk
+- `X` = Empty chunk
 
 ## Directory Structure
 
