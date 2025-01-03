@@ -1,7 +1,6 @@
 """Tests for version tracking functionality."""
 
 import os
-import json
 import shutil
 import unittest
 from datetime import datetime

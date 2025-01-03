@@ -82,7 +82,6 @@ class MockSocket:
         
     def settimeout(self, timeout: float) -> None:
         """Mock setting socket timeout."""
-        pass
         
     def getsockname(self):
         """Return mock local address."""

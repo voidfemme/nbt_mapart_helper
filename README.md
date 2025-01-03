@@ -1,8 +1,9 @@
 # NBT Mapart Helper
 
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)]()
 
-A Python tool for helping create Minecraft map art by analyzing NBT files block by block.
+A Python tool for helping create Minecraft map art by analyzing NBT files block by block. Now with LAN collaboration support!
 
 ## Features
 
@@ -13,6 +14,14 @@ A Python tool for helping create Minecraft map art by analyzing NBT files block 
 - Chunk statistics and analysis
 - Save chunk data to files
 - Configurable settings
+
+### NEW: LAN Collaboration Features
+- Work together with others on the same map art project
+- Real-time synchronization of progress
+- See who's working on which chunks
+- Built-in chunk locking to prevent conflicts
+- Host/client architecture for easy setup
+- Automatic peer discovery on local network
 
 ## Installation
 
@@ -62,6 +71,15 @@ python main.py
   - Use 'u' to unmark a row
   - Use 'q' to return to the main menu
 
+### LAN Mode
+
+1. Enable LAN mode through the menu
+2. One user should enable hosting mode
+3. Other users on the network will automatically discover the host
+4. Changes are automatically synchronized between all users
+5. Users can see who is working on which chunks
+6. Chunks are automatically locked when being edited
+
 ### Chunk Grid Legend
 
 - `█` = Completed chunk
@@ -76,9 +94,21 @@ nbt_mapart_helper/
 ├── resources/      # Configuration and data files
 ├── src/           # Source code
 │   ├── models/    # Data models
+│   │   └── lan_session.py  # LAN functionality
+│   ├── networking/   # Network communication
 │   └── utils/     # Utility functions
 └── tests/         # Test files
 ```
+
+## Configuration
+
+LAN-specific settings can be configured in `resources/config.json`:
+- `lan_enabled`: Enable/disable LAN functionality
+- `lan_port`: Port for network communication
+- `lan_discovery_port`: Port for peer discovery
+- `lan_auto_sync`: Enable/disable automatic synchronization
+- `lan_sync_interval`: Time between automatic syncs (seconds)
+- `lan_host_mode`: Whether this instance is acting as a host
 
 ## Contributing
 
@@ -95,3 +125,4 @@ Under the following terms:
 - Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
 
 For more information, visit: https://creativecommons.org/licenses/by/4.0/
+

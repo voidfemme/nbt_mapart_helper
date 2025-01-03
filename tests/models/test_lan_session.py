@@ -3,11 +3,11 @@
 import os
 import json
 import fcntl
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Dict, List, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 
-from src.utils.versioning import VersionTracker, ChangeType
+from src.utils.versioning import VersionTracker
 from src.models.user_session import UserSession
 
 
