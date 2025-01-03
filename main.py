@@ -2,6 +2,7 @@
 
 import sys
 import os
+import time
 from nbtlib import nbt
 
 from src.config import ConfigManager
@@ -95,6 +96,63 @@ class NBTViewer:
         print(f"\nDiscovered peer: {peer.username} at {peer.ip_address}")
         if peer.is_host:
             print("This peer is hosting the session")
+
+    def _connect_to_host(self) -> None:
+        """Connect to a host manually or through discovery."""
+        session_handler = self._get_session_handler()
+
+        if not isinstance(self.session, LANSession):
+            print("\nLAN mode must be enabled first")
+            return
+        
+        print("\nConnect to Host:")
+        print("1. Auto-discover hosts")
+        print("2. Manual connection")
+        print("3. Cancel")
+
+        choice = input("\nEnter your choice: ").strip()
+
+        if choice == "1": 
+            # Wait for discovery results
+            print("\nSearching for hosts...")
+            time.sleep(2)  # Give time for discovery
+
+            active_peers = self.session.get_active_peers()
+            hosts = [peer for peer in active_peers if peer.is_host]
+            
+            if not hosts:
+                print("No hosts found. Try manual connection")
+                return
+            print("\nAvailable Hosts:")
+            for i, host in enumerate(hosts, 1):
+                print(f"{i}. {host.username} at {host.ip_address}:{host.port}")
+
+                host_choice = input("\nEnter host number (or 'c' to cancel): ").strip()
+                if host_choice.lower() == 'c': 
+                    return
+                
+                try:
+                    host_idx = int(host_choice) - 1 
+                    if 0 <= host_idx < len(hosts):
+                        host = hosts[host_idx]
+                        self.session.connect_to_host(host.ip_address, host.port)
+                        print(f"\nConnected to host {host.username}")
+                    else:
+                        print("Invalid host number")
+                except ValueError:
+                    print("Invalid input")
+        elif choice == "2": 
+            # Manual connection
+            ip = input("\nEnter host IP address: ").strip()
+            try:
+                port = int(input("Enter host port (default: 8080): ").strip() or "8080")
+                self.session.connect_to_host(ip, port)
+                print(f"\nConnected to host at {ip}:{port}")
+            except ValueError:
+                print("Invalid port number")
+            except Exception as e:
+                print(f"Connection failed: {str(e)}")
+
 
     def load_nbt_file(self) -> None:
         """Load NBT file and initialize managers."""
@@ -420,7 +478,8 @@ class NBTViewer:
                     print("11. Network Status")
                     print("12. Start/Stop Hosting")
                     print("13. Force Sync")
-                    print("14. Toggle LAN Mode")
+                    print("14. Connect to Host")
+                    print("15. Toggle LAN Mode")
                 else:
                     print("11. Toggle LAN Mode")
 
@@ -540,6 +599,8 @@ class NBTViewer:
                 elif self.config.is_lan_enabled() and choice == "13":
                     self._force_sync()
                 elif self.config.is_lan_enabled() and choice == "14":
+                    self._connect_to_host()
+                elif self.config.is_lan_enabled() and choice == "15":
                     self._toggle_lan_mode()
                 else:
                     print("Invalid choice. Please try again.")

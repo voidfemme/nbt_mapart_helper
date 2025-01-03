@@ -3,6 +3,8 @@
 import os
 import json
 import fcntl
+import requests
+import socket
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
@@ -57,6 +59,104 @@ class LANSession:
 
         # Initialize peers file
         self._initialize_peers_file()
+
+        self.host_ip = None
+        self.host_port = None
+        self.auth_token = None
+
+    def _get_local_ip(self) -> str:
+        """Get local IP address."""
+        try:
+            # Create temporary socket to determine local IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "127.0.0.1"  # Fallback to localhost
+
+    def _handle_sync_conflict(self, file_id: str, response_data: dict) -> None:
+        """Handle version conflicts during synchronization.
+
+        Args:
+            file_id: Path to the file with conflict
+            response_data: Server response containing conflict information
+        """
+        try:
+            print(f"\nVersion conflict detected for {file_id}")
+            print("Local changes conflict with remote changes.")
+            print("\nOptions:")
+            print("1. Keep local version")
+            print("2. Use remote version")
+            print("3. Skip this file")
+
+            choice = input("\nEnter choice (1-3): ").strip()
+
+            if choice == "1":
+                # Force push local version
+                with open(file_id, "r") as f:
+                    content = json.load(f)
+                self._sync_file(
+                    file_id, response_data.get("local_version", 0), force=True
+                )
+                print("Local version kept.")
+
+            elif choice == "2":
+                # Get and apply remote version
+                response = requests.get(
+                    f"http://{self.host_ip}:{self.host_port}/file/{os.path.basename(file_id)}",
+                    headers={"Authorization": f"Bearer {self.auth_token}"},
+                )
+                if response.status_code == 200:
+                    with open(file_id, "w") as f:
+                        json.dump(response.json(), f, indent=4)
+                    print("Remote version applied.")
+                else:
+                    print("Failed to get remote version.")
+
+            else:
+                print("Sync skipped for this file.")
+
+        except Exception as e:
+            print(f"Error handling sync conflict: {str(e)}")
+
+    def _sync_file(self, file_id: str, local_version: int, force: bool = False) -> None:
+        """Synchronize a specific file with the host.
+
+        Args:
+            file_id: Path to the file to sync
+            local_version: Current local version of the file
+            force: Whether to force push local version
+        """
+        try:
+            with open(file_id, "r") as f:
+                content = json.load(f)
+
+            sync_data = {
+                "base_version": local_version,
+                "content": content,
+                "force": force,
+            }
+
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+
+            endpoint = (
+                "/sync/progress" if file_id == self.progress_file else "/sync/session"
+            )
+            response = requests.post(
+                f"http://{self.host_ip}:{self.host_port}{endpoint}",
+                json=sync_data,
+                headers=headers,
+            )
+
+            if response.status_code == 409 and not force:
+                self._handle_sync_conflict(file_id, response.json())
+            elif response.status_code != 200:
+                print(f"Sync failed for {file_id}: {response.reason}")
+
+        except Exception as e:
+            print(f"Error syncing {file_id}: {str(e)}")
 
     def _initialize_peers_file(self) -> None:
         """Initialize peers file if it doesn't exist."""
@@ -197,6 +297,105 @@ class LANSession:
             return datetime.now() - last_seen <= timedelta(minutes=5)
         except Exception:
             return False
+
+    def connect_to_host(self, ip_address: str, port: int) -> bool:
+        """Connect to a host and initialize synchronization."""
+        try:
+            # Store host information
+            self.host_ip = ip_address
+            self.host_port = port
+
+            # Initialize requests session
+            response = requests.post(
+                f"http://{self.host_ip}:{self.host_port}/auth",
+                json={"username": self.username},
+                timeout=5,
+            )
+
+            if response.status_code != 200:
+                print(f"Authentication failed: {response.reason}")
+                return False
+
+            self.auth_token = response.json().get("token")
+
+            # Register with the host
+            self.register_peer(
+                username=self.username,
+                ip_address=self._get_local_ip(),
+                port=self.lan_port,
+                is_host=False,
+            )
+
+            # Initial sync
+            self._force_sync()
+            return True
+
+        except requests.RequestException as e:
+            print(f"Connection failed: {str(e)}")
+            return False
+
+    def _force_sync(self) -> None:
+        """Force immediate synchronization with the host."""
+        if not self.auth_token:
+            print("Not connected to a host")
+            return
+
+        try:
+            # Get current versions
+            progress_version = self.version_tracker.get_current_version(
+                self.progress_file
+            )
+            session_version = self.version_tracker.get_current_version(
+                self.session_file
+            )
+
+            # Sync progress file
+            self._sync_file(self.progress_file, progress_version)
+
+            # Sync session file
+            self._sync_file(self.session_file, session_version)
+
+            self.last_sync = datetime.now().isoformat()
+
+        except Exception as e:
+            print(f"Sync failed: {str(e)}")
+
+    def _sync_file(self, file_id: str, local_version: int) -> None:
+        """Synchronize a specific file with the host.
+
+        Args:
+            file_id: Path to the file to sync
+            local_version: Current local version of the file
+        """
+        try:
+            with open(file_id, "r") as f:
+                content = json.load(f)
+
+            sync_data = {"base_version": local_version, "content": content}
+
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}",
+            }
+
+            endpoint = (
+                "/sync/progress" if file_id == self.progress_file else "/sync/session"
+            )
+            response = requests.post(
+                f"http://{self.host_ip}:{self.host_port}{endpoint}",
+                json=sync_data,
+                headers=headers,
+            )
+
+            if response.status_code == 409:
+                # Handle version conflict
+                print(f"Version conflict detected for {file_id}")
+                self._handle_sync_conflict(file_id, response.json())
+            elif response.status_code != 200:
+                print(f"Sync failed for {file_id}: {response.reason}")
+
+        except Exception as e:
+            print(f"Error syncing {file_id}: {str(e)}")
 
     def cleanup(self) -> None:
         """Clean up network session state."""
