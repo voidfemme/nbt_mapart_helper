@@ -1,3 +1,4 @@
 gnureadline==8.2.13
 nbtlib==2.0.4
-setuptools==75.2.0
+Requests==2.32.3
+setuptools==75.6.0
