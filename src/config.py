@@ -13,6 +13,13 @@ DEFAULT_CONFIG = {
     "auto_save": True,
     "auto_backup": False,
     "backup_interval": 3600,  # seconds
+    # LAN-specific configuration
+    "lan_enabled": False,
+    "lan_port": 8080,
+    "lan_discovery_port": 8081,
+    "lan_auto_sync": True,
+    "lan_sync_interval": 300,  # seconds
+    "lan_host_mode": False,
 }
 
 class ConfigManager:
@@ -161,6 +168,42 @@ class ConfigManager:
             return os.path.exists(nbt_file) and os.access(nbt_file, os.R_OK)
         except Exception:
             return False
+
+    def is_lan_enabled(self) -> bool:
+        """Check if LAN mode is enabled.
+        
+        Returns:
+            True if LAN mode is enabled, False otherwise
+        """
+        return self.config.get('lan_enabled', False)
+
+    def toggle_lan_mode(self) -> bool:
+        """Toggle LAN mode on/off.
+        
+        Returns:
+            New state of LAN mode (True = enabled, False = disabled)
+        """
+        new_state = not self.is_lan_enabled()
+        self.set('lan_enabled', new_state)
+        return new_state
+
+    def get_lan_settings(self) -> Dict[str, Any]:
+        """Get all LAN-related settings.
+        
+        Returns:
+            Dictionary containing LAN configuration settings
+        """
+        return {
+            key: self.config.get(key)
+            for key in [
+                'lan_enabled',
+                'lan_port',
+                'lan_discovery_port',
+                'lan_auto_sync',
+                'lan_sync_interval',
+                'lan_host_mode'
+            ]
+        }
 
     @property
     def all_settings(self) -> Dict[str, Any]:
