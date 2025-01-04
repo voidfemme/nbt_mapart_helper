@@ -31,8 +31,18 @@ ENV/
 *.swp
 *.swo
 
-# Project specific
-resources/config.json
-resources/progress.json
-resources/backups/
-resources/output/
+# Base resources directory
+resources/*
+!resources/.gitkeep
+
+# Project-specific directories that might be created
+resources/*/output/
+resources/*/backups/
+resources/*/David_0_0.nbt
+resources/*/progress.json
+resources/*/sessions.json
+resources/*/config.json
+resources/*/peers.json
+
+# Test environment
+test_environment/

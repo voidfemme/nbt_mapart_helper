@@ -3,6 +3,7 @@
 import sys
 import os
 import time
+from pathlib import Path
 from nbtlib import nbt
 
 from src.config import ConfigManager
@@ -32,11 +33,58 @@ class NBTViewer:
     def __init__(self):
         """Initialize NBT viewer application."""
         self.config = ConfigManager()
-        self.load_nbt_file()
+        self.load_or_create_project()
 
         # Initialize user session
         self.username = self._get_username()
         self._initialize_session()
+
+    def load_or_create_project(self) -> None:
+        """Load existing project or create new one."""
+        projects = self.config.list_projects()
+
+        if not projects:
+            print("\nNo existing projects found.")
+            self.handle_new_project()
+            return
+
+        print("\nAvailable projects:")
+        for i, (name, config) in enumerate(projects.items(), 1):
+            print(f"{i}. {name} ({Path(config['nbt_file']).name})")
+        print(f"{len(projects) + 1}. Create new project")
+
+        while True:
+            try:
+                choice = int(input("\nSelect project: "))
+                if 1 <= choice <= len(projects):
+                    project_name = list(projects.keys())[choice - 1]
+                    project_paths = self.config.load_project(project_name)
+                    self.load_nbt_file(project_paths["nbt_file"])
+                    break
+                elif choice == len(projects) + 1:
+                    self.handle_new_project()
+                    break
+                else:
+                    print("Invalid choice")
+            except ValueError:
+                print("Please enter a number")
+
+    def handle_new_project(self) -> None:
+        """Handle creation of a new project"""
+        print("\nCreate New Project:")
+        print("Use tab completion to navigate directories")
+        while True:
+            nbt_path = input_with_path_completion("Enter path to NBT file: ").strip()
+            if os.path.exists(nbt_path):
+                try:
+                    project_paths = self.config.create_project(nbt_path)
+                    self.load_nbt_file(project_paths["nbt_file"])
+                    print(f"\nCreated new project in {project_paths['project_dir']}")
+                    break
+                except Exception as e:
+                    print(f"Error creating project: {str(e)}")
+            else:
+                print("File not found. Please try again.")
 
     def _get_username(self) -> str:
         """Get username from environment or user input."""
@@ -99,12 +147,10 @@ class NBTViewer:
 
     def _connect_to_host(self) -> None:
         """Connect to a host manually or through discovery."""
-        session_handler = self._get_session_handler()
-
         if not isinstance(self.session, LANSession):
             print("\nLAN mode must be enabled first")
             return
-        
+
         print("\nConnect to Host:")
         print("1. Auto-discover hosts")
         print("2. Manual connection")
@@ -112,14 +158,14 @@ class NBTViewer:
 
         choice = input("\nEnter your choice: ").strip()
 
-        if choice == "1": 
+        if choice == "1":
             # Wait for discovery results
             print("\nSearching for hosts...")
             time.sleep(2)  # Give time for discovery
 
             active_peers = self.session.get_active_peers()
             hosts = [peer for peer in active_peers if peer.is_host]
-            
+
             if not hosts:
                 print("No hosts found. Try manual connection")
                 return
@@ -128,11 +174,11 @@ class NBTViewer:
                 print(f"{i}. {host.username} at {host.ip_address}:{host.port}")
 
                 host_choice = input("\nEnter host number (or 'c' to cancel): ").strip()
-                if host_choice.lower() == 'c': 
+                if host_choice.lower() == "c":
                     return
-                
+
                 try:
-                    host_idx = int(host_choice) - 1 
+                    host_idx = int(host_choice) - 1
                     if 0 <= host_idx < len(hosts):
                         host = hosts[host_idx]
                         self.session.connect_to_host(host.ip_address, host.port)
@@ -141,7 +187,7 @@ class NBTViewer:
                         print("Invalid host number")
                 except ValueError:
                     print("Invalid input")
-        elif choice == "2": 
+        elif choice == "2":
             # Manual connection
             ip = input("\nEnter host IP address: ").strip()
             try:
@@ -153,43 +199,23 @@ class NBTViewer:
             except Exception as e:
                 print(f"Connection failed: {str(e)}")
 
+    def load_nbt_file(self, nbt_path: str) -> None:
+        """Load NBT file and initialize managers.
 
-    def load_nbt_file(self) -> None:
-        """Load NBT file and initialize managers."""
+        Args:
+            nbt_path: Path to the NBT file to load
+        """
         try:
-            self.nbt_file = nbt.load(self.config.get("nbt_file"))
+            self.nbt_file = nbt.load(nbt_path)
             self.chunk_manager = ChunkManager(self.nbt_file)
             self.progress_tracker = ProgressTracker(self.config.get("progress_file"))
         except FileNotFoundError:
-            print(f"Error: NBT file not found at {self.config.get('nbt_file')}")
-            self.handle_missing_nbt()
+            print(f"Error: NBT file not found at {nbt_path}")
+            sys.exit(1)
         except Exception as e:
             print(f"Error loading NBT file: {str(e)}")
             sys.exit(1)
 
-    def handle_missing_nbt(self) -> None:
-        """Handle missing NBT file scenario."""
-        print("\nWould you like to:")
-        print("1. Create default config with example file")
-        print("2. Specify a new NBT file path")
-        choice = input("Enter choice (1/2): ").strip()
-
-        if choice == "1":
-            self.config.reset()
-            print(f"Created default config at {self.config.config_file}")
-            self.load_nbt_file()
-        elif choice == "2":
-            new_path = input_with_path_completion("Enter the path to your NBT file: ")
-            if os.path.exists(new_path):
-                self.config.set("nbt_file", new_path)
-                print(f"Updated config with new NBT file path: {new_path}")
-                self.load_nbt_file()
-            else:
-                print("Error: Specified file does not exist. Exiting.")
-                sys.exit(1)
-        else:
-            print("Invalid choice. Exiting.")
-            sys.exit(1)
 
     def view_chunk_data(self, chunk_ref: str) -> None:
         """View data for a specific chunk."""
@@ -421,15 +447,10 @@ class NBTViewer:
 
     def change_nbt_file(self) -> None:
         """Change the current NBT file."""
-        print("\nUse tab completion to navigate directories")
-        new_path = input_with_path_completion("Enter the path to your NBT file: ")
-        if os.path.exists(new_path):
-            self.config.set("nbt_file", new_path)
-            print(f"Updated config with new NBT file path: {new_path}")
-            print("Please restart the program to load the new file.")
-            sys.exit(0)
-        else:
-            print("Error: Specified file does not exist.")
+        print("\nThis will create a new project with the selected NBT file.")
+        self.handle_new_project()
+        print("Please restart the program to load the new project.")
+        sys.exit(0)
 
     def show_help(self) -> None:
         """Display help information."""
