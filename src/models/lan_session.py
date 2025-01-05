@@ -4,12 +4,12 @@ import os
 import json
 import fcntl
 import requests
-import socket
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 
 from src.utils.versioning import VersionTracker
+from src.utils.networking import get_local_ip
 from src.models.user_session import UserSession
 
 
@@ -64,17 +64,48 @@ class LANSession:
         self.host_port = None
         self.auth_token = None
 
-    def _get_local_ip(self) -> str:
-        """Get local IP address."""
+    def _initialize_peers_file(self) -> None:
+        """Initialize the peers file if it doesn't exist.
+
+        The peers file maintains a record of all users participating in the LAN session.
+        Each entry contains:
+            - username: Unique identifier for the user
+            - ip_address: User's local network IP
+            - port: Port number they're using
+            - last_seen: Timestamp of their last activity
+            - is_host: Whether this peer is hosting the session
+
+        The file is created with an empty peers dictionary if it doesn't exist.
+        """
         try:
-            # Create temporary socket to determine local IP
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except Exception:
-            return "127.0.0.1"  # Fallback to localhost
+            # Create the directory path if it doesn't exist
+            os.makedirs(os.path.dirname(self.peers_file), exist_ok=True)
+
+            # Check if the file exists and is valid JSON
+            if os.path.exists(self.peers_file):
+                try:
+                    with open(self.peers_file, "r") as f:
+                        json.load(f)  # Try to parse existing file
+                    return  # File exists and is valid JSON
+                except json.JSONDecodeError:
+                    print(f"Warning: Peers file corrupted, creating new one")
+                    # Fall through to create new file
+
+            # Create new peers file with empty structure
+            with open(self.peers_file, "w") as f:
+                json.dump(
+                    {
+                        "peers": {},  # Dictionary to store peer information
+                        "last_updated": datetime.now().isoformat(),  # Track file freshness
+                    },
+                    f,
+                    indent=4,
+                )
+
+        except Exception as e:
+            print(f"Error initializing peers file: {str(e)}")
+            # Create peers file in memory if we can't write to disk
+            self._peers = {"peers": {}}
 
     def _handle_sync_conflict(self, file_id: str, response_data: dict) -> None:
         """Handle version conflicts during synchronization.
@@ -95,11 +126,7 @@ class LANSession:
 
             if choice == "1":
                 # Force push local version
-                with open(file_id, "r") as f:
-                    content = json.load(f)
-                self._sync_file(
-                    file_id, response_data.get("local_version", 0), force=True
-                )
+                self._sync_file(file_id, response_data.get("local_version", 0))
                 print("Local version kept.")
 
             elif choice == "2":
@@ -127,43 +154,71 @@ class LANSession:
         Args:
             file_id: Path to the file to sync
             local_version: Current local version of the file
-            force: Whether to force push local version
+            force: Whether to force push local version even if there are conflicts
         """
         try:
-            with open(file_id, "r") as f:
-                content = json.load(f)
+            # Read the current file content
+            try:
+                with open(file_id, "r") as f:
+                    content = json.load(f)
+            except FileNotFoundError:
+                # If file doesn't exist yet, use empty defaults
+                content = (
+                    {"completed_rows": {}, "completed_chunks": [], "last_modified": {}}
+                    if file_id == self.progress_file
+                    else {"chunk_locks": {}, "active_users": {}}
+                )
 
+            # Prepare sync data including force flag and content
             sync_data = {
                 "base_version": local_version,
                 "content": content,
                 "force": force,
             }
 
-            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            # Set up headers with both auth token and content type
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}",
+            }
 
+            # Determine the appropriate endpoint based on file type
             endpoint = (
                 "/sync/progress" if file_id == self.progress_file else "/sync/session"
             )
+
+            # Send sync request to host
             response = requests.post(
                 f"http://{self.host_ip}:{self.host_port}{endpoint}",
                 json=sync_data,
                 headers=headers,
+                timeout=30,
             )
 
+            # Handle response based on status code
             if response.status_code == 409 and not force:
+                print(f"Version conflict detected for {file_id}")
                 self._handle_sync_conflict(file_id, response.json())
-            elif response.status_code != 200:
+            elif response.status_code == 409 and force:
+                print(f"Forced sync of {file_id} successful")
+            elif response.status_code == 200:
+                print(f"Sync of {file_id} successful")
+            else:
                 print(f"Sync failed for {file_id}: {response.reason}")
+                print(f"Status code: {response.status_code}")
+                if response.headers.get("Content-Type") == "application/json":
+                    error_data = response.json()
+                    if "error" in error_data:
+                        print(f"Error details: {error_data['error']}")
 
+        except requests.exceptions.Timeout:
+            print(f"Sync timeout for {file_id}: Server took too long to respond")
+        except requests.exceptions.ConnectionError:
+            print(f"Sync failed for {file_id}: Could not connect to host")
+        except json.JSONDecodeError:
+            print(f"Sync failed for {file_id}: Invalid JSON in file")
         except Exception as e:
             print(f"Error syncing {file_id}: {str(e)}")
-
-    def _initialize_peers_file(self) -> None:
-        """Initialize peers file if it doesn't exist."""
-        os.makedirs(os.path.dirname(self.peers_file), exist_ok=True)
-        if not os.path.exists(self.peers_file):
-            with open(self.peers_file, "w") as f:
-                json.dump({"peers": {}}, f, indent=4)
 
     def _load_peers(self) -> Dict[str, NetworkPeer]:
         """Load peers from file."""
@@ -321,7 +376,7 @@ class LANSession:
             # Register with the host
             self.register_peer(
                 username=self.username,
-                ip_address=self._get_local_ip(),
+                ip_address=get_local_ip(),
                 port=self.lan_port,
                 is_host=False,
             )
@@ -359,43 +414,6 @@ class LANSession:
 
         except Exception as e:
             print(f"Sync failed: {str(e)}")
-
-    def _sync_file(self, file_id: str, local_version: int) -> None:
-        """Synchronize a specific file with the host.
-
-        Args:
-            file_id: Path to the file to sync
-            local_version: Current local version of the file
-        """
-        try:
-            with open(file_id, "r") as f:
-                content = json.load(f)
-
-            sync_data = {"base_version": local_version, "content": content}
-
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.auth_token}",
-            }
-
-            endpoint = (
-                "/sync/progress" if file_id == self.progress_file else "/sync/session"
-            )
-            response = requests.post(
-                f"http://{self.host_ip}:{self.host_port}{endpoint}",
-                json=sync_data,
-                headers=headers,
-            )
-
-            if response.status_code == 409:
-                # Handle version conflict
-                print(f"Version conflict detected for {file_id}")
-                self._handle_sync_conflict(file_id, response.json())
-            elif response.status_code != 200:
-                print(f"Sync failed for {file_id}: {response.reason}")
-
-        except Exception as e:
-            print(f"Error syncing {file_id}: {str(e)}")
 
     def cleanup(self) -> None:
         """Clean up network session state."""

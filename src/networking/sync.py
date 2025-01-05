@@ -156,7 +156,7 @@ class FileSync:
         content: Dict,
         local_diff: FileDiff,
         remote_diff: FileDiff,
-        conflict_resolution: Dict[str, str] = None
+        conflict_resolution: Dict[str, str] | None = None
     ) -> Tuple[bool, Dict]:
         """Merge local and remote changes.
         
