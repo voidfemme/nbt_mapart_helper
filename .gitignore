@@ -43,6 +43,7 @@ resources/*/progress.json
 resources/*/sessions.json
 resources/*/config.json
 resources/*/peers.json
+David_0_0.nbt
 
 # Test environment
 test_environment/
